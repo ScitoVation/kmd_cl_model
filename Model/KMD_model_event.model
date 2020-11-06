@@ -1,0 +1,202 @@
+# This model was developed for the HESI KMD working group
+# The first case study model consists of oral and IV exposure routes, Linear and saturable metabolism in the liver,non-saturable urinary excretion of parent and metabolite, and 3 flow limited compartments - liver , richly perfused tissue and slowly perfused tissue
+# Created By: Salil Pendse - June 2nd, 2020
+
+
+States = {apls, # Amount parent in plasma in umol
+          aliv, # Amount parent in liver in umol
+          aspf, # Amount parent in slowly perfused tissue in umol
+          arpf, # Amount parent in richly perfused tissue in umol
+          amet, # Amount of metabolite generated in umol
+          aumet, # Amount of metabolite excreted in urine in umol
+          auprnt, #Amount of parent excreted in urine in umol
+          totiv,   # Total amount of IV dose in umol
+          ivswtch, # switch for iv input  
+          totodose, # Total oral dose exposed
+          aoral,     # Oral dose in gut lumen
+          auc_cprnt, # Parent plasma concentartion AUC
+          auc_cmet,  # Metabolite plasma concentration AUC
+          auc_ctot   # Total Chemical Plasma concentration AUC
+          };
+Outputs = {cpls, # Concentration of parent in plasm in umol/L
+           
+           cliv, #Concentration of parent in liver in umol/L
+           cspf, #Concentration of parent in slowly perfused tissue in umol/L
+           crpf, #Concentration of parent in richly perfused tissue in umol/L,
+           
+           mbal, #Mass balance in umols
+           ramet, #Instataneous metabolism rate in umol/h
+           raumet, #Instataneoud urinary excretion rate in umol/h
+           raoral, #Instantaneos oral aborption rate 
+           rauprnt, #Urinary elimination rate for the parent
+           cumet, #Urinary concentration of the metabolite
+           cuprnt, #Urinary concentration of the parent
+           cmet, #Plasma concentration of Metabolite
+           vbal, #Volume balance in L
+           qbal, # blood flow balance in L/h
+           riv #IV infusion rate in um/h
+           };
+
+#Parameters
+
+#physiological
+bw = 0.0; # Body weight in  kg
+qc = 0.0; # Cardiac Output L/h
+
+#  Tissue Volumes
+vliv = 0.0; #Volume of liver in L
+vpls =0.0; #Volume of plasma in L
+vrbc = 0.0; #rbc volume in L ( only used for volume balance)
+hct = 0.42; #Hematocrit factor for rats
+vspf = 0.0; #Volume of slowly perfused tissye in L
+vrpf = 0.0; #Volume of richly perfused tissue in L
+
+#urinary excretion
+rvurine; #Rate of urine formation in l/h
+vurinec = 0.0; #Urine volume in L/kg BW/day
+vkep1=0.0; #First order excretion rate of the parent in urine in L/h
+vmaxpu = 0.0; #Maximum urinary excretion rate of hte parent in umol/h
+kmpu =0.0; #Michaelis-Menten Constant for urinary excretion of the parent in umol/L
+vkem1 = 0.0; # First order excretion rate of metabolite in urine  in L/h
+vmaxmu = 0.0; #Maximum Urinary excretion rate of metabolitein umol/h
+kmmu = 0.0; #Michaelis-Menten Constant for urinary excretion of metabolite in umol/L
+
+
+# Tissue Perfusion
+qliv = 0.0; #Blood flow to the liver in L/h
+qspf = 0.0; #Blood flow to slowly perfused tissue in L/h
+qrpf = 0.0; #Blood flow to richly perfused tissue in L/h
+
+# Tissue partitions
+pliv = 0.0; # partitioning into liver
+prpf = 0.0; # partitioning into richly perfused tissues
+pspf = 0.0; # partitioning into slowly perfused tissues
+
+#Hepatic Metabolism
+vmax = 0.0; # Maximum metabolic rate in umol/h
+km = 0.0; # Michaelis Menten constant in umol/L
+vkm1 = 0.0; #linear metabolism in the liver in L/h
+
+#Chemical Specific
+MW = 0.0; # Molecular weight of the chemical in g/mol
+
+#Exposure
+ivdose = 0.0; # mg/h
+boral = 0.0; #mg/kgbw/day bolus oral exposure
+ka = 0.0; #/h
+fa = 0.0; #Fraction absorbed
+vmax0 = 0.0;# Saturable Aborption rate in umol/h
+km0=0.0; # saturable abosrption rate constant in umol
+
+Initialize{
+rvurine = vurinec*bw/24.0; #Convert volume of urine from L/kg BW/ day to L/h
+}
+
+Dynamics{
+#IV Exposure
+dt(ivswtch)=0;
+riv = ivswtch*ivdose*1000/MW;
+
+# Oral Exposure
+dt(totodose)=0; #umols
+
+#non - saturable absorbtion
+raoral1 = ka * fa *aoral; #umols/h
+
+#saturable aborbtion
+raoral2 = (vmax0*aoral)/(km0+aoral); #umol/h
+
+raoral = raoral1+raoral2;
+dt(aoral) = -raoral; #umol/h
+
+
+# Tissue Concentrations
+cpls = apls/vpls;
+cliv = aliv/vliv;
+cspf = aspf/vspf;
+crpf = arpf/vrpf;
+
+#metabolite Plasma Concentration
+cmet = amet/vpls;
+
+
+#LIVER
+
+# Metabolism in liver
+#michaelis Menten metabolism
+ramet_sat = (vmax*cliv/pliv)/((cliv/pliv)+km);
+#linear metabolism rate
+ramet_lin = vkm1 *cliv/pliv;
+#Total metaoblism 
+ramet = ramet_sat + ramet_lin;
+#Assume oral exposure goes straight into the liver
+dt(aliv) = qliv*(cpls - cliv/pliv) - ramet + raoral;
+
+#RPF
+dt(arpf) =qrpf*(cpls - crpf/prpf);
+
+#SPF
+dt(aspf)= qspf*(cpls - cspf/pspf);
+
+#Urinary Clearance
+
+#PARENT
+#Saturable
+rauprnt_sat = (vmaxpu*cpls)/((cpls)+kmpu);
+
+#linear
+rauprnt_lin = vkep1*cpls;
+
+rauprnt = rauprnt_sat + rauprnt_lin;
+dt(auprnt)=rauprnt;
+
+#Urinary parent concentration
+cuprnt = rauprnt/rvurine;
+
+
+#plasma
+cv = (qliv*cliv/pliv + qspf*cspf/pspf + qrpf*crpf/prpf)/qc; # rate amount leaving all tissues and entering venous blood
+dt(apls) = qc*cv - qc * cpls + riv - rauprnt;
+
+
+
+#METABOLITE
+#Saturable
+raumet_sat= (vmaxmu*cmet)/((cmet)+kmmu);
+
+#Linear
+raumet_lin = vkem1 *cmet;
+
+raumet = raumet_sat + raumet_lin; # rate of excretion of metaobilite through urine.
+dt(aumet) = raumet;
+dt(amet)= ramet - raumet; # since only one route will be active at one time and removing metabolite already lost in urine
+
+#Urinay metabolite concentration
+cumet = raumet/rvurine;
+
+
+#IV exposure
+dt(totiv)=riv;
+
+#AUCs
+dt(auc_cprnt)=cpls;
+dt(auc_cmet) =cmet;
+dt(auc_ctot)=cpls+cmet;
+
+#MASS BALANCE
+totexpo = totiv+totodose;
+totbody = apls + aliv + arpf + aspf + aoral;
+totmetab = amet;
+totclear = aumet+auprnt;
+mbal = totexpo - totbody - (totmetab + totclear);
+vbal = (0.85*bw) - (vpls+vrbc+vliv+vspf+vrpf);
+qbal = qc-(qliv+qrpf+qspf);
+}
+
+Events{
+aoral = (boral >0 ? (boral*bw*1000/MW):aoral);
+totodose = (boral >0 ? totodose+(boral*bw*1000/MW):totodose);
+ivswtch = (ivdose>0?(ivswtch==0 ? 1:0):0);
+}
+
+End
