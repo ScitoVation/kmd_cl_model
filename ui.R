@@ -73,7 +73,7 @@ shinyUI(
                                                                                     width= "100%")
                                                                    ),
                                                             column(3,
-                                                                   numericInput("num_lkow","Log10 Ocatnol Water Partition",
+                                                                   numericInput("num_lkow","Log10 Octanol Water Partition",
                                                                                 value = 1,width = "100%")
                                                                    )
                                                         ),
